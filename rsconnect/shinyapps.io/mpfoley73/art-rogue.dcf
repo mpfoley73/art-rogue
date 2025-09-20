@@ -5,7 +5,7 @@ account: mpfoley73
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 15503172
-bundleId: 10926134
+bundleId: 10930683
 url: https://mpfoley73.shinyapps.io/art-rogue/
 version: 1
 asMultiple: FALSE

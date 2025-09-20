@@ -2,6 +2,7 @@ library(shiny)
 library(bslib)
 library(ellmer)
 library(shinychat)
+library(httr)
 
 # ---- Setup ----
 met_api <- "https://collectionapi.metmuseum.org/public/collection/v1/"
@@ -111,6 +112,10 @@ server <- function(input, output, session) {
   
   shinychat::chat_mod_server("chat_ui", chat)
   
+  output$selected_artwork_display <- renderUI({
+    includeMarkdown("intro.md")
+  })
+  
   bot_prompt <- function(prompt_str) {
     print(glue::glue("bot prompt: {prompt_str}"))
     ns_id <- shiny::NS("chat_ui")("chat")
@@ -122,16 +127,30 @@ server <- function(input, output, session) {
   artworks <- reactiveVal(NULL)
   
   render_met_results <- function(object_ids, output_id = "met_search_results") {
-    if (length(object_ids) == 0) {
+    if (length(object_ids) == 0 || is.null(object_ids)) {
       output[[output_id]] <- renderUI("No results found.")
       return()
     }
-    
+
     # For each artwork in result set, pull its details from the API.
-    arts <- lapply(object_ids, function(id) {
+    arts <- list()
+    for (id in object_ids) {
       obj_url <- paste0(met_api, "objects/", id)
-      jsonlite::fromJSON(obj_url)
-    })
+      # defensive fetch: skip if not 200
+      resp <- tryCatch(httr::GET(obj_url, timeout(5)), error = function(e) NULL)
+      if (is.null(resp)) next
+      status <- httr::status_code(resp)
+      if (status != 200) {
+        # skip 404 and other errors
+        next
+      }
+      # safe parse
+      parsed <- tryCatch(
+        jsonlite::fromJSON(httr::content(resp, as = "text", encoding = "UTF-8")),
+        error = function(e) NULL
+      )
+      if (!is.null(parsed)) arts[[length(arts) + 1]] <- parsed
+    }
     
     artworks(arts)  # store in the reactive val
     

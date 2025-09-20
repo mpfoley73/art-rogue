@@ -1,6 +1,7 @@
 library(shiny)
 library(bslib)
 library(ellmer)
+library(markdown)
 library(shinychat)
 library(httr)
 

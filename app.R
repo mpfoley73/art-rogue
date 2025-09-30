@@ -11,9 +11,9 @@ met_api <- "https://collectionapi.metmuseum.org/public/collection/v1/"
 # ---- Theme ----
 my_theme <- bs_theme(
   version = 5,
-  bootswatch = "lux",      # or another Bootswatch
-  primary = "#8B4513",     # warm brown
-  secondary = "#C0A060",   # gold accent
+  bootswatch = "lux",
+  primary = "#8B4513",
+  secondary = "#C0A060",
   success = "#3B7A57",
   base_font = font_google("Lato"),
   heading_font = font_google("Merriweather"),
@@ -37,7 +37,6 @@ tags$style(HTML("
 ui <- page_sidebar(
   theme = my_theme,
   title = "ArtRogue",
-  
   tags$head(
     tags$style(HTML("
       .card {
@@ -58,7 +57,6 @@ ui <- page_sidebar(
       }
     "))
   ),
-  
   sidebar = sidebar(
     accordion(
       accordion_panel(
@@ -89,7 +87,7 @@ ui <- page_sidebar(
       uiOutput("selected_artwork_display"),
       uiOutput("selected_artwork_metadata")
     ),
-    
+
     # Right column: chatbot
     card(
       header = "ArtRogue Chat",
@@ -110,13 +108,13 @@ server <- function(input, output, session) {
     ),
     model = "gpt-4.1"
   )
-  
+
   shinychat::chat_mod_server("chat_ui", chat)
-  
+
   output$selected_artwork_display <- renderUI({
     includeMarkdown("intro.md")
   })
-  
+
   bot_prompt <- function(prompt_str) {
     print(glue::glue("bot prompt: {prompt_str}"))
     ns_id <- shiny::NS("chat_ui")("chat")
@@ -124,9 +122,9 @@ server <- function(input, output, session) {
     stream <- chat$stream_async(prompt_str)
     shinychat::chat_append(ns_id, stream, session = session)
   }
-  
+
   artworks <- reactiveVal(NULL)
-  
+
   render_met_results <- function(object_ids, output_id = "met_search_results") {
     if (length(object_ids) == 0 || is.null(object_ids)) {
       output[[output_id]] <- renderUI("No results found.")
@@ -152,9 +150,9 @@ server <- function(input, output, session) {
       )
       if (!is.null(parsed)) arts[[length(arts) + 1]] <- parsed
     }
-    
-    artworks(arts)  # store in the reactive val
-    
+
+    artworks(arts) # store in the reactive val
+
     output[[output_id]] <- renderUI({
       div(
         style = "display: grid;
@@ -169,28 +167,32 @@ server <- function(input, output, session) {
             inputId = paste0("art_select_", i),
             label = div(
               class = "art-card",
-              style = "border: 1px solid #ccc; border-radius: 8px; 
-                     padding: 0.5rem; text-align: center; 
+              style = "border: 1px solid #ccc; border-radius: 8px;
+                     padding: 0.5rem; text-align: center;
                      background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
-              if (!is.null(art$primaryImageSmall) && art$primaryImageSmall != "")
-                img(src = art$primaryImageSmall,
-                    style = "max-height: 120px; width: auto; border-radius: 4px;"),
-              div(style = "font-size: 0.8em; margin-top: 0.5rem;",
-                  strong(art$title), br(),
-                  if (nzchar(art$artistDisplayName)) art$artistDisplayName else "Unknown",
-                  br(), art$objectDate
+              if (!is.null(art$primaryImageSmall) && art$primaryImageSmall != "") {
+                img(
+                  src = art$primaryImageSmall,
+                  style = "max-height: 120px; width: auto; border-radius: 4px;"
+                )
+              },
+              div(
+                style = "font-size: 0.8em; margin-top: 0.5rem;",
+                strong(art$title), br(),
+                if (nzchar(art$artistDisplayName)) art$artistDisplayName else "Unknown",
+                br(), art$objectDate
               )
             )
           )
         })
       )
     })
-    
+
     return(artworks)
   }
-  
+
   selected_artwork <- reactiveVal(NULL)
-  
+
   observeEvent(input$search_btn, {
     req(input$met_search_string)
     search_url <- paste0(met_api, "search?", "q=", URLencode(input$met_search_string))
@@ -198,26 +200,26 @@ server <- function(input, output, session) {
     object_ids <- head(search_results$objectIDs, 5)
     artworks <<- render_met_results(object_ids)
   })
-  
+
   observeEvent(input$surprise_btn, {
     search_url <- paste0(met_api, URLencode("search?isHighlight=true&isOnView=true&hasImages=true&q=*"))
     search_results <- jsonlite::fromJSON(search_url)
     object_ids <- sample(search_results$objectIDs, size = 5)
     artworks <<- render_met_results(object_ids)
   })
-    
+
   observe({
     arts <- artworks()
-    req(arts)  # ensure it’s not NULL
+    req(arts) # ensure it’s not NULL
 
     lapply(seq_along(arts), function(i) {
       observeEvent(input[[paste0("art_select_", i)]], {
         selected_artwork(arts[[i]])
-        
+
         output$selected_artwork_display <- renderUI({
           HTML(glue::glue("<img src='{arts[[i]]$primaryImageSmall}'>"))
         })
-        
+
         # Tells shiny, 'update the UI before running this code'
         later::later(function() {
           summary_prompt <- paste(
@@ -226,13 +228,13 @@ server <- function(input, output, session) {
             "I am already looking at it. Here is the metadata: ",
             jsonlite::toJSON(arts[[i]])
           )
-          
+
           bot_prompt(summary_prompt)
         })
       })
     })
   })
-  
+
   output$selected_artwork_metadata <- renderUI({
     req(selected_artwork())
     art <- selected_artwork()
@@ -244,9 +246,7 @@ server <- function(input, output, session) {
       p(strong("Dimensions: "), art$dimensions)
     )
   })
-  
-    
 }
 
-# Run the application 
+# Run the application
 shinyApp(ui = ui, server = server)

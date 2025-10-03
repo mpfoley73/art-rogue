@@ -6,7 +6,9 @@ library(shinychat)
 library(httr)
 
 # ---- Setup ----
-met_api <- "https://collectionapi.metmuseum.org/public/collection/v1/"
+source("R/fx_api.R")
+source("R/cma_api.R")
+source("R/met_api.R")
 
 # ---- Theme ----
 my_theme <- bs_theme(
@@ -62,35 +64,44 @@ ui <- page_sidebar(
       accordion_panel(
         "Find Artworks",
         textInput(
-          "met_search_string",
+          "search_string",
           "Search for an artwork, artist, or keyword:",
-          placeholder = "e.g. van gogh, armor, magpie"
+          placeholder = "e.g. van gogh, baseball"
         ),
         actionButton("search_btn", "Search", class = "btn-primary"),
         div(class = "my-2 text-center", "- or -"),
         actionButton("surprise_btn", "Surprise Me!")
       ),
       accordion_panel(
-        "Results",
-        uiOutput("met_search_results")
+        "Museum",
+        selectInput(
+          "museum",
+          label = "Museum:",
+          choices = c(met_label, cma_label),
+          selected = cma_label
+        )
       ),
-      open = c("Find Artworks", "Results")
+      open = c("Find Artworks", "Museum")
     ),
-    # actionButton("interpret_btn", "Interpret This"),
   ),
   layout_columns(
     col_widths = c(8, 4),
 
-    # Left column: artwork image + metadata
-    card(
-      header = "Selected Artwork",
-      uiOutput("selected_artwork_display"),
-      uiOutput("selected_artwork_metadata")
+    # Left column: group Search Results above Selected Artwork
+    div(
+      card(
+        uiOutput("search_results"),
+        max_height = "250px"
+      ),
+      card(
+        uiOutput("selected_artwork_display"),
+        uiOutput("selected_artwork_metadata")
+      )
     ),
 
     # Right column: chatbot
     card(
-      header = "ArtRogue Chat",
+      card_header("ArtRogue Chat"),
       shinychat::chat_mod_ui("chat_ui"),
       full_screen = TRUE
     )
@@ -111,6 +122,7 @@ server <- function(input, output, session) {
 
   shinychat::chat_mod_server("chat_ui", chat)
 
+  # Default to a welcome screen.
   output$selected_artwork_display <- renderUI({
     includeMarkdown("intro.md")
   })
@@ -125,35 +137,15 @@ server <- function(input, output, session) {
 
   artworks <- reactiveVal(NULL)
 
-  render_met_results <- function(object_ids, output_id = "met_search_results") {
-    if (length(object_ids) == 0 || is.null(object_ids)) {
-      output[[output_id]] <- renderUI("No results found.")
+  render_results <- function(artworks_list) {
+    if (length(artworks_list) == 0 || is.null(artworks_list)) {
+      output$search_results <- renderUI("No results found.")
       return()
     }
-
-    # For each artwork in result set, pull its details from the API.
-    arts <- list()
-    for (id in object_ids) {
-      obj_url <- paste0(met_api, "objects/", id)
-      # defensive fetch: skip if not 200
-      resp <- tryCatch(httr::GET(obj_url, timeout(5)), error = function(e) NULL)
-      if (is.null(resp)) next
-      status <- httr::status_code(resp)
-      if (status != 200) {
-        # skip 404 and other errors
-        next
-      }
-      # safe parse
-      parsed <- tryCatch(
-        jsonlite::fromJSON(httr::content(resp, as = "text", encoding = "UTF-8")),
-        error = function(e) NULL
-      )
-      if (!is.null(parsed)) arts[[length(arts) + 1]] <- parsed
-    }
-
-    artworks(arts) # store in the reactive val
-
-    output[[output_id]] <- renderUI({
+    
+    artworks(artworks_list) # store in the reactive val
+    
+    output$search_results <- renderUI({
       div(
         style = "display: grid;
                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -161,8 +153,8 @@ server <- function(input, output, session) {
                max-height: 500px;
                overflow-y: auto;
                padding: 0.5rem;",
-        lapply(seq_along(arts), function(i) {
-          art <- arts[[i]]
+        lapply(seq_along(artworks_list), function(i) {
+          artwork <- fx_search_result(input$museum, artworks_list[[i]], verbose = TRUE)
           actionLink(
             inputId = paste0("art_select_", i),
             label = div(
@@ -170,42 +162,38 @@ server <- function(input, output, session) {
               style = "border: 1px solid #ccc; border-radius: 8px;
                      padding: 0.5rem; text-align: center;
                      background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
-              if (!is.null(art$primaryImageSmall) && art$primaryImageSmall != "") {
+              if (!is.null(artwork$img_url) && artwork$img_url != "") {
                 img(
-                  src = art$primaryImageSmall,
+                  src = artwork$img_url,
                   style = "max-height: 120px; width: auto; border-radius: 4px;"
                 )
               },
               div(
                 style = "font-size: 0.8em; margin-top: 0.5rem;",
-                strong(art$title), br(),
-                if (nzchar(art$artistDisplayName)) art$artistDisplayName else "Unknown",
-                br(), art$objectDate
+                strong(artwork$title), br(),
+                artwork$artist, br(),
+                artwork$creation_date
               )
             )
           )
         })
       )
     })
-
+    
     return(artworks)
   }
-
+  
   selected_artwork <- reactiveVal(NULL)
 
   observeEvent(input$search_btn, {
-    req(input$met_search_string)
-    search_url <- paste0(met_api, "search?", "q=", URLencode(input$met_search_string))
-    search_results <- jsonlite::fromJSON(search_url)
-    object_ids <- head(search_results$objectIDs, 5)
-    artworks <<- render_met_results(object_ids)
+    req(input$search_string)
+    artworks_list <- fx_search(input$museum, input$search_string)
+    render_results(artworks_list)
   })
 
   observeEvent(input$surprise_btn, {
-    search_url <- paste0(met_api, URLencode("search?isHighlight=true&isOnView=true&hasImages=true&q=*"))
-    search_results <- jsonlite::fromJSON(search_url)
-    object_ids <- sample(search_results$objectIDs, size = 5)
-    artworks <<- render_met_results(object_ids)
+    artworks_list <- fx_search(input$museum, "*")
+    render_results(artworks_list)
   })
 
   observe({
@@ -215,9 +203,11 @@ server <- function(input, output, session) {
     lapply(seq_along(arts), function(i) {
       observeEvent(input[[paste0("art_select_", i)]], {
         selected_artwork(arts[[i]])
+        
+        artwork <- fx_search_result(input$museum, arts[[i]], verbose = TRUE)
 
         output$selected_artwork_display <- renderUI({
-          HTML(glue::glue("<img src='{arts[[i]]$primaryImageSmall}'>"))
+          HTML(glue::glue("<img src='{artwork$img_url}'>"))
         })
 
         # Tells shiny, 'update the UI before running this code'
@@ -238,12 +228,11 @@ server <- function(input, output, session) {
   output$selected_artwork_metadata <- renderUI({
     req(selected_artwork())
     art <- selected_artwork()
+    artwork <- fx_search_result(input$museum, art, verbose = TRUE)
     tagList(
-      h4(art$title),
-      p(strong("Artist: "), art$artistDisplayName),
-      p(strong("Date: "), art$objectDate),
-      p(strong("Medium: "), art$medium),
-      p(strong("Dimensions: "), art$dimensions)
+      h4(artwork$title),
+      p(strong("Artist: "), artwork$artist),
+      p(strong("Date: "), artwork$creation_date)
     )
   })
 }

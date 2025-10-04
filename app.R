@@ -36,7 +36,7 @@ tags$style(HTML("
   }
 "))
 
-ui <- page_sidebar(
+ui <- page_navbar(
   theme = my_theme,
   title = "ArtRogue",
   tags$head(
@@ -84,6 +84,7 @@ ui <- page_sidebar(
       open = c("Find Artworks", "Museum")
     ),
   ),
+  nav_panel("Home",
   layout_columns(
     col_widths = c(8, 4),
 
@@ -106,6 +107,12 @@ ui <- page_sidebar(
       full_screen = TRUE
     )
   )
+  ),
+  
+  nav_spacer(),
+  
+  nav_menu("About", 
+    nav("About", card(card_header("About this app"), card_body(includeMarkdown("about.md")))))
 )
 
 server <- function(input, output, session) {
@@ -117,7 +124,7 @@ server <- function(input, output, session) {
       "comparisons. Avoid a dry academic tone - be bold and conversational. ",
       "If possible, include an unexpected detail or interpretation."
     ),
-    model = "gpt-4.1"
+    model = "gpt-5-nano"
   )
 
   shinychat::chat_mod_server("chat_ui", chat)
@@ -142,9 +149,9 @@ server <- function(input, output, session) {
       output$search_results <- renderUI("No results found.")
       return()
     }
-    
+
     artworks(artworks_list) # store in the reactive val
-    
+
     output$search_results <- renderUI({
       div(
         style = "display: grid;
@@ -179,10 +186,10 @@ server <- function(input, output, session) {
         })
       )
     })
-    
+
     return(artworks)
   }
-  
+
   selected_artwork <- reactiveVal(NULL)
 
   observeEvent(input$search_btn, {
@@ -203,7 +210,7 @@ server <- function(input, output, session) {
     lapply(seq_along(arts), function(i) {
       observeEvent(input[[paste0("art_select_", i)]], {
         selected_artwork(arts[[i]])
-        
+
         artwork <- fx_search_result(input$museum, arts[[i]], verbose = TRUE)
 
         output$selected_artwork_display <- renderUI({

@@ -1,5 +1,6 @@
 ## The Cleveland Museum of Art Open Access API
 ## https://www.clevelandart.org/open-access-api
+## https://openaccess-api.clevelandart.org/ (documentation)
 
 cma_api <- "https://openaccess-api.clevelandart.org/api/artworks/"
 
@@ -13,7 +14,9 @@ fx_search_cma <- function(q, verbose = FALSE) {
   search_url <- paste0(
     cma_api, "?",
     "q=", URLencode(q),
-    "&has_image=1")
+    "&has_image=1",
+    "&limit=100" # If limit not provided, API return 1000 records
+  )
   if (verbose) message(paste("search_url:", search_url))
   result_set <- jsonlite::fromJSON(search_url)
   

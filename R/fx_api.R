@@ -34,6 +34,6 @@ fx_search_result <- function(api, artwork, verbose = FALSE) {
     artist = artist,
     creation_date = creation_date
   )
-  if (verbose) message(paste("search_result:", search_result))
+  if (verbose) print(paste("search_result:", search_result))
   return(search_result)
 }

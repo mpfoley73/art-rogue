@@ -1,10 +1,10 @@
 max_results <- 5
 
-fx_search <- function(api, q) {
+fx_search <- function(api, q, highlight = FALSE) {
   if (api == cma_label) {
-    api_url = fx_search_cma(q, verbose = TRUE)
+    api_url = fx_search_cma(q, highlight, verbose = TRUE)
   } else if (api == met_label) {
-    api_url = fx_search_met(q, verbose = TRUE)
+    api_url = fx_search_met(q, highlight, verbose = TRUE)
   } else {
     api_url = "(unknown)"
   }

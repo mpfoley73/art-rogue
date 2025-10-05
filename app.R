@@ -39,7 +39,7 @@ tags$style(HTML("
 ui <- page_navbar(
   theme = my_theme,
   title = "ArtRogue",
-  tags$head(
+  header = tags$head(
     tags$style(HTML("
       .card {
         border-radius: 12px;
@@ -59,60 +59,88 @@ ui <- page_navbar(
       }
     "))
   ),
-  sidebar = sidebar(
-    accordion(
-      accordion_panel(
-        "Find Artworks",
-        textInput(
-          "search_string",
-          "Search for an artwork, artist, or keyword:",
-          placeholder = "e.g. van gogh, baseball"
+  nav_panel(
+    title = tagList(icon("home"), "Home"),
+    layout_columns(
+      col_widths = c(8, 4),
+
+      # Left column: group Search Results above Selected Artwork
+      div(
+        accordion(
+          id = "search_accordion",
+          accordion_panel(
+            "What's there to see at the museum",
+            uiOutput("intro"),
+            card(
+              card_body(
+                fluidRow(
+                  column(
+                    width = 9,
+                    textInput(
+                      "search_string",
+                      label = NULL, # "Search artworks / artist / keyword",
+                      placeholder = "e.g. van gogh, baseball", width = "100%"
+                    )
+                  ),
+                  column(
+                    width = 3,
+                    actionButton("search_btn", "Search", class = "btn-primary"),
+                  )
+                )
+              ),
+              card_footer(
+                div(
+                  class = "d-flex gap-2",
+                  "- or -",
+                  actionButton("surprise_btn", "Surprise Me!", class = "btn-secondary"),
+                  actionButton("new_btn", "What's New?", class = "btn-secondary"),
+                )
+              )
+            ),
+            # card(
+            uiOutput("search_results"),
+            max_height = "250px"
+            # ),
+          )
         ),
-        actionButton("search_btn", "Search", class = "btn-primary"),
-        div(class = "my-2 text-center", "- or -"),
-        actionButton("surprise_btn", "Surprise Me!")
-      ),
-      accordion_panel(
-        "Museum",
-        selectInput(
-          "museum",
-          label = "Museum:",
-          choices = c(met_label, cma_label),
-          selected = cma_label
+        # Artwork Display
+        card(
+          uiOutput("selected_artwork_display"),
+          uiOutput("selected_artwork_metadata")
         )
       ),
-      open = c("Find Artworks", "Museum")
-    ),
-  ),
-  nav_panel("Home",
-  layout_columns(
-    col_widths = c(8, 4),
 
-    # Left column: group Search Results above Selected Artwork
-    div(
+      # Right column: chatbot
       card(
-        uiOutput("search_results"),
-        max_height = "250px"
-      ),
+        card_header("ArtRogue Chat"),
+        shinychat::chat_mod_ui("chat_ui"),
+        full_screen = TRUE
+      )
+    )
+  ),
+  nav_spacer(),
+  nav_menu(
+    "More",
+    nav_panel(
+      title = tagList(icon("gear"), "Settings"),
       card(
-        uiOutput("selected_artwork_display"),
-        uiOutput("selected_artwork_metadata")
+        selectizeInput(
+          "museum",
+          "Museum:",
+          choices = c(met_label, cma_label),
+          selected = cma_label,
+          # width = "100%"
+        )
       )
     ),
-
-    # Right column: chatbot
-    card(
-      card_header("ArtRogue Chat"),
-      shinychat::chat_mod_ui("chat_ui"),
-      full_screen = TRUE
+    nav_panel(
+      title = tagList(icon("info"), "About"),
+      card(
+        card_header("About this app"),
+        card_body(includeMarkdown("about.md"))
+      )
     )
   )
-  ),
-  
-  nav_spacer(),
-  
-  nav_menu("About", 
-    nav("About", card(card_header("About this app"), card_body(includeMarkdown("about.md")))))
 )
 
 server <- function(input, output, session) {
@@ -124,13 +152,13 @@ server <- function(input, output, session) {
       "comparisons. Avoid a dry academic tone - be bold and conversational. ",
       "If possible, include an unexpected detail or interpretation."
     ),
-    model = "gpt-5-nano"
+    model = "gpt-4.1-mini"
   )
 
   shinychat::chat_mod_server("chat_ui", chat)
 
   # Default to a welcome screen.
-  output$selected_artwork_display <- renderUI({
+  output$intro <- renderUI({
     includeMarkdown("intro.md")
   })
 
@@ -162,6 +190,9 @@ server <- function(input, output, session) {
                padding: 0.5rem;",
         lapply(seq_along(artworks_list), function(i) {
           artwork <- fx_search_result(input$museum, artworks_list[[i]], verbose = TRUE)
+          if (is.null(artwork) || is.null(artwork$title) || is.null(artwork$artist)) {
+            return(div(class = "art-card", "Invalid artwork"))
+          }
           actionLink(
             inputId = paste0("art_select_", i),
             label = div(
@@ -172,7 +203,7 @@ server <- function(input, output, session) {
               if (!is.null(artwork$img_url) && artwork$img_url != "") {
                 img(
                   src = artwork$img_url,
-                  style = "max-height: 120px; width: auto; border-radius: 4px;"
+                  style = "max-height: 120px; max-width: 75px; width: auto; border-radius: 4px;"
                 )
               },
               div(
@@ -203,6 +234,11 @@ server <- function(input, output, session) {
     render_results(artworks_list)
   })
 
+  observeEvent(input$new_btn, {
+    artworks_list <- fx_search(input$museum, "*", highlight = TRUE)
+    render_results(artworks_list)
+  })
+
   observe({
     arts <- artworks()
     req(arts) # ensure it’s not NULL
@@ -214,8 +250,14 @@ server <- function(input, output, session) {
         artwork <- fx_search_result(input$museum, arts[[i]], verbose = TRUE)
 
         output$selected_artwork_display <- renderUI({
-          HTML(glue::glue("<img src='{artwork$img_url}'>"))
+          HTML(glue::glue("<img src='{artwork$img_url}' style='max-width:800px; max-height:800px;'>"))
         })
+
+        output$intro <- renderUI({
+          ""
+        })
+
+        accordion_panel_close("search_accordion", values = TRUE)
 
         # Tells shiny, 'update the UI before running this code'
         later::later(function() {

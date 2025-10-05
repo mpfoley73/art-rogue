@@ -5,14 +5,16 @@ met_api <- "https://collectionapi.metmuseum.org/public/collection/v1/"
 
 met_label <- "Metropolitan (MMA)"
 
-fx_search_met <- function(q, verbose = FALSE) {
+fx_search_met <- function(q = "*", highlight = FALSE, verbose = FALSE) {
   # The search endpoint returns a vector of Object IDs of artworks whose
   # metadata contains the query string.
   # Example: https://collectionapi.metmuseum.org/public/collection/v1/search?q=baseball
+  if (highlight) { highlight <- "&isHighlight=true" } else {highlight <- ""}
   search_url <- paste0(
     met_api, 
     "search?isHighlight=true&isOnView=true&hasImages=true", 
-    "&q=", URLencode(q)
+    "&q=", URLencode(q),
+    highlight
   )
   if (verbose) message(paste("search_url:", search_url))
   result_set <- jsonlite::fromJSON(search_url)

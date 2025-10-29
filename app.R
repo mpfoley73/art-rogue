@@ -190,7 +190,7 @@ server <- function(input, output, session) {
                padding: 0.5rem;",
         lapply(seq_along(artworks_list), function(i) {
           artwork <- fx_search_result(input$museum, artworks_list[[i]], verbose = TRUE)
-          if (is.null(artwork) || is.null(artwork$title) || is.null(artwork$artist)) {
+          if (is.null(artwork) || is.null(artwork$title)) {
             return(div(class = "art-card", "Invalid artwork"))
           }
           actionLink(
@@ -239,40 +239,61 @@ server <- function(input, output, session) {
     render_results(artworks_list)
   })
 
-  observe({
+  # ---------------------------------------------------------------------------
+  # App displays up to 5 artwork tiles. If user clicks a tile, kick off a
+  # dialogue with the LLM.
+
+  chat_about_artwork <- function(i) {
     arts <- artworks()
     req(arts) # ensure it’s not NULL
+    selected_artwork(arts[[i]])
 
-    lapply(seq_along(arts), function(i) {
-      observeEvent(input[[paste0("art_select_", i)]], {
-        selected_artwork(arts[[i]])
+    artwork <- fx_search_result(input$museum, arts[[i]], verbose = TRUE)
 
-        artwork <- fx_search_result(input$museum, arts[[i]], verbose = TRUE)
-
-        output$selected_artwork_display <- renderUI({
-          HTML(glue::glue("<img src='{artwork$img_url}' style='max-width:800px; max-height:800px;'>"))
-        })
-
-        output$intro <- renderUI({
-          ""
-        })
-
-        accordion_panel_close("search_accordion", values = TRUE)
-
-        # Tells shiny, 'update the UI before running this code'
-        later::later(function() {
-          summary_prompt <- paste(
-            "I am looking an image of a work of art. What should I ",
-            "understand about it? No need to show me the image since ",
-            "I am already looking at it. Here is the metadata: ",
-            jsonlite::toJSON(arts[[i]])
-          )
-
-          bot_prompt(summary_prompt)
-        })
-      })
+    output$selected_artwork_display <- renderUI({
+      HTML(glue::glue("<img src='{artwork$img_url}' style='max-width:800px; max-height:800px;'>"))
     })
+
+    output$intro <- renderUI({
+      ""
+    })
+
+    accordion_panel_close("search_accordion", values = TRUE)
+
+    # Tells shiny, 'update the UI before running this code'
+    later::later(function() {
+      summary_prompt <- paste(
+        "I am looking an image of a work of art. What should I ",
+        "understand about it? No need to show me the image since ",
+        "I am already looking at it. Here is the metadata: ",
+        jsonlite::toJSON(arts[[i]])
+      )
+
+      bot_prompt(summary_prompt)
+    })
+  }
+
+  observeEvent(input$art_select_1, {
+    chat_about_artwork(1)
   })
+
+  observeEvent(input$art_select_2, {
+    chat_about_artwork(2)
+  })
+
+  observeEvent(input$art_select_3, {
+    chat_about_artwork(3)
+  })
+
+  observeEvent(input$art_select_4, {
+    chat_about_artwork(4)
+  })
+
+  observeEvent(input$art_select_5, {
+    chat_about_artwork(5)
+  })
+
+  #----------------------------------------------------------------------------
 
   output$selected_artwork_metadata <- renderUI({
     req(selected_artwork())

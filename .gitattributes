@@ -1,0 +1,4 @@
+# Detect text normally, but keep R and Markdown files as LF instead of CRLF (Windows convention)
+* text=auto
+*.R text eol=lf
+*.md text eol=lf

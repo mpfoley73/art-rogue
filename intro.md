@@ -1,5 +1,5 @@
 <div style="display:flex; align-items:flex-start; gap:1rem;">
-  <img src="www/the-rogue.png" alt="ArtRogue guide" style="width:120px; border-radius:8px;" />
+  <img src="the-rogue.png" alt="ArtRogue guide" style="width:120px; border-radius:8px;" />
   <div>
     <h2>Ah — you've arrived.</h2>
     <p>Let me be your roguish tour guide through the back alleys of art history.</p>
